@@ -22,18 +22,40 @@ module spi_master(
 	localparam idle=3'b000, setup = 3'b001, write = 3'b010, read = 3'b011, delay = 3'b100, delay1 = 3'b101;
 
 	reg [2:0]current_state,next_state;
+	reg sclk_prev;
 
+	wire rising_edge;
+	wire falling_edge;
+	wire sample_edge;
+	wire shift_edge;
+	wire leading_edge;
+	wire trailing_edge;
 	always @(posedge PCLK) begin
-	    if (PRESETn) begin
-	        sclk <= 0;
-	    end else if (current_state == write || current_state == read) begin
-	        sclk <= ~sclk ; // Toggle sclk during write and read
-	    end 
-	    else begin
-	        sclk <= 0; // Default to 0 in other states
+	    if (PRESETn) 
+	    begin
+	        sclk <= SPICR_1[3]; // CPOL
+        	sclk_prev <= SPICR_1[3];
+	    end
+	    else
+	    begin
+	    	sclk_prev <=sclk;
+		    if (current_state == write || current_state == read) begin
+		        sclk <= ~sclk ; // Toggle sclk during write and read
+		    end 
+		    else
+		    begin
+		        sclk <= SPICR_1[3];
+		    end
 	    end
 	end
 
+	assign rising_edge   = (sclk_prev == 0 && sclk == 1);
+	assign falling_edge  = (sclk_prev == 1 && sclk == 0);
+	assign leading_edge  = (SPICR_1[3] == 0) ? rising_edge  : falling_edge;
+	assign trailing_edge = (SPICR_1[3] == 0) ? falling_edge : rising_edge;
+	assign sample_edge   = (SPICR_1[2] == 0) ? leading_edge  : trailing_edge;
+	assign shift_edge    = (SPICR_1[2] == 0) ? trailing_edge : leading_edge;
+//**********************************************************************************//Left here
 	always @(posedge PCLK)
 	begin
 	    if(PRESETn)
@@ -141,10 +163,10 @@ module spi_master(
 					   begin
 					       SPISR[5] = 1'b0;                       //SPTEF=0;
 					       SPISR[7] = 1'b0;                       //SPIF = 0 Transfer not yet complete
-						   if(sclk==0)
+						   if(shift_edge)
 					       begin
-						   mosi<=SPIDR_W[scount][4'h7-count1];
-						   count1=count1+1'b1;
+							   mosi<=SPIDR_W[scount][4'h7-count1];
+							   count1=count1+1'b1;
 						   end
 					   end
 						
@@ -175,7 +197,7 @@ module spi_master(
 				    begin
 					    if(count2<4'd8)                            //32 BIT
 					    begin
-						   if(sclk==0)
+						   if(sample_edge)
 					       begin
 						   SPIDR_R[scount][4'h7-count2]<=miso;
 						   count2=count2+1'b1;

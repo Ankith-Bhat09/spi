@@ -29,7 +29,7 @@ module spi_controller(
     reg [31:0] divisor = 4'd0;
     
     always @(posedge PCLK) begin
-        if (PRESETn || SPISR[0]==1) begin
+        if (PRESETn || SPISR[0]==1) begin//****************************************************************error here*********************************************//
             // Reset all registers and internal signals
             SPICR_1 <= 8'b0;
             SPICR_2 <= 8'b0;
